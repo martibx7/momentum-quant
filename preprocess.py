@@ -3,7 +3,7 @@
 preprocess.py
 
 Load raw CSVs for a specified date (or list available dates), normalize to 1-min bars,
-filter by price band, and compute all our indicators: VWAP, EMAs, MACD, ATR, ADX, momentum.
+filter by price band (excluding ETF barometers), and compute all our indicators: VWAP, EMAs, MACD, ATR, ADX, momentum.
 Carry through embedded metadata columns: prev_close and avg_daily_vol.
 
 Usage:
@@ -19,18 +19,21 @@ import argparse
 import pandas as pd
 from glob import glob
 
+# ==== CONFIG ====
+RAW_DIR    = os.path.join('data', 'raw')
+OUT_DIR    = os.path.join('data', 'processed')
+MIN_PRICE  = 2.0
+MAX_PRICE  = 20.0
+# Symbols to always include (barometer ETFs)
+BAROMETERS = {'SPY', 'QQQ', 'IWM'}
+# =================
+
 def parse_args():
     p = argparse.ArgumentParser(description='Preprocess raw 1-min data by date')
     p.add_argument('--date', help='Date to process in YYYY-MM-DD format')
     p.add_argument('--list-dates', action='store_true', help='List available dates in raw data')
     return p.parse_args()
 
-# ==== CONFIG ====
-RAW_DIR    = os.path.join('data', 'raw')
-OUT_DIR    = os.path.join('data', 'processed')
-MIN_PRICE  = 2.0
-MAX_PRICE  = 20.0
-# =================
 
 def extract_dates_from_raw():
     """Scan raw filenames and return sorted list of unique dates (YYYY-MM-DD)."""
@@ -42,15 +45,17 @@ def extract_dates_from_raw():
         # expect SYMBOL_YYYYMMDD_...csv
         if len(parts) >= 2 and parts[1].isdigit() and len(parts[1]) == 8:
             d = parts[1]
-            dates.add(f"{d[:4]}-{d[4:6]}-{d[6:]}" )
+            dates.add(f"{d[:4]}-{d[4:6]}-{d[6:]}")
     return sorted(dates)
+
 
 def find_symbols_for_date(date_str):
     """Return list of symbol prefixes for raw files matching the given date."""
     pattern = os.path.join(RAW_DIR, f"*_{date_str.replace('-','')}*.csv")
     files = glob(pattern)
-    symbols = sorted({ os.path.basename(f).split('_',1)[0] for f in files })
+    symbols = sorted({os.path.basename(f).split('_', 1)[0] for f in files})
     return symbols
+
 
 def load_csv(path):
     df = pd.read_csv(path)
@@ -77,6 +82,7 @@ def load_csv(path):
         df[c] = pd.to_numeric(df[c], errors='coerce')
     return df.dropna(subset=['close'])
 
+
 def preprocess_symbol(sym, date_str):
     print(f"→ Processing {sym} on {date_str}")
     filename_pattern = os.path.join(RAW_DIR, f"{sym}_{date_str.replace('-','')}*.csv")
@@ -94,17 +100,18 @@ def preprocess_symbol(sym, date_str):
         'low': 'min',
         'close': 'last',
         'volume': 'sum',
-        **({ 'prev_close': 'first', 'avg_daily_vol': 'first' } if 'prev_close' in df.columns else {})
+        **({'prev_close': 'first', 'avg_daily_vol': 'first'} if 'prev_close' in df.columns else {})
     }).ffill()
 
-    # price filter
-    df = df[(df['close'] >= MIN_PRICE) & (df['close'] <= MAX_PRICE)]
-    if df.empty:
-        print("   ⚠️ No bars in price band, skipping.")
-        return
+    # price filter: only apply to non-barometer symbols
+    if sym not in BAROMETERS:
+        df = df[(df['close'] >= MIN_PRICE) & (df['close'] <= MAX_PRICE)]
+        if df.empty:
+            print("   ⚠️ No bars in price band, skipping.")
+            return
 
     # VWAP
-    df['vwap'] = ((df['close'] + df['high'] + df['low'])/3 * df['volume']).cumsum() / df['volume'].cumsum()
+    df['vwap'] = ((df['close'] + df['high'] + df['low']) / 3 * df['volume']).cumsum() / df['volume'].cumsum()
 
     # EMAs
     df['ema9']   = df['close'].ewm(span=9, adjust=False).mean()
@@ -146,6 +153,7 @@ def preprocess_symbol(sym, date_str):
     df.to_csv(out_file)
     print(f"   ✅ Wrote {out_file}")
 
+
 def main():
     args = parse_args()
     if args.list_dates:
@@ -171,4 +179,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

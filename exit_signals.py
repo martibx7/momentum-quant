@@ -10,12 +10,14 @@ Generate exit timestamps for each entry in signals_<date>.csv based on:
  5) VWAP cross: close ≤ VWAP
  6) Time-stop: exit at or after 15:45
 
+Now also carries through `shares` from entry signals for P&L sizing.
+
 Usage:
   python exit_signals.py --date YYYY-MM-DD
 
 Outputs:
   data/signals/exits_<date>.csv with:
-    ticker, entry_ts, exit_ts, exit_reason, entry_price, exit_price, regime
+    ticker, entry_ts, exit_ts, exit_reason, entry_price, exit_price, regime, shares
 """
 import os
 import argparse
@@ -33,14 +35,17 @@ TRAIL_PCT = {
     'bearish':     0.015  # 1.5%
 }
 
+
 def parse_args():
     p = argparse.ArgumentParser(description='Generate exit signals by date')
     p.add_argument('--date', required=True, help='Date in YYYY-MM-DD')
     return p.parse_args()
 
+
 def load_entries(date_str):
     path = os.path.join(SIGNALS_DIR, f'signals_{date_str}.csv')
     return pd.read_csv(path, parse_dates=['timestamp'])
+
 
 def find_exit(sym, date_str, entry_ts, stop_price, regime):
     path = os.path.join(PROCESSED_DIR, f'{sym}_{date_str}.csv')
@@ -94,6 +99,7 @@ def find_exit(sym, date_str, entry_ts, stop_price, regime):
     t = df2.index[-1]
     return t, 'end_of_day', df2.loc[t]['open']
 
+
 def main():
     args = parse_args()
     date_str = args.date
@@ -106,22 +112,25 @@ def main():
         entry_pr   = r['entry_price']
         stop_pr    = r['stop_price']
         regime     = r.get('regime', 'neutral')
+        shares     = int(r.get('shares', 1))
 
         exit_ts, reason, exit_pr = find_exit(sym, date_str, entry_ts, stop_pr, regime)
         results.append({
             'ticker':      sym,
             'entry_ts':    entry_ts,
-            'exit_ts':     exit_ts,
-            'exit_reason': reason,
             'entry_price': entry_pr,
+            'exit_ts':     exit_ts,
             'exit_price':  exit_pr,
-            'regime':      regime
+            'exit_reason': reason,
+            'regime':      regime,
+            'shares':      shares,
         })
 
     df_out = pd.DataFrame(results)
     out_path = os.path.join(SIGNALS_DIR, f'exits_{date_str}.csv')
     df_out.to_csv(out_path, index=False)
     print(f"✅ Wrote exit signals → {out_path}")
+
 
 if __name__ == '__main__':
     main()
