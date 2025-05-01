@@ -1,96 +1,111 @@
 # Momentum Quant Trading Framework
 
-A local momentum-based algorithmic trading system with end-to-end backtesting and execution scaffolding.
+A live + backtestable momentum day-trading system. Designed to be:
+- **Paper-ready** in real-time with IBKR (Interactive Brokers)
+- **Backtestable** down to 1-minute granularity
+- Config-driven, modular, and expandable
 
-## Overview
-This repo implements a full daily backtest and live-ready workflow leveraging minute-level data and a dynamic ETF barometer. The core pipeline for a given date is:
+---
 
-1. **download_universe_samples.py**  
-   • Fetch raw 1-min bars for your ticker universe (from `data/universe.txt`) plus SPY/QQQ/IWM barometers → `data/raw/`
-2. **preprocess.py**  
-   • Resample & clean raw bars; filter by price band ($2–$20); compute VWAP, EMAs, MACD, ATR, ADX, momentum → `data/processed/`
-3. **universe_filter.py**  
-   • Static screener on R2K universe (move ≥10%, rel-vol ≥5×, avg-vol ≥5M, float <50M) → `data/signals/universe_filtered_<date>.csv`
-4. **generate_signals.py**  
-   • For filtered symbols, detect breakout+pullback entries with indicator checks and regime‑adjusted thresholds (SPY/QQQ/IWM barometer) → `data/signals/signals_<date>.csv`
-5. **exit_signals.py**  
-   • Attach exits per entry (stop-loss, momentum end, MACD/VWAP crosses, time-stop by regime) → `data/signals/exits_<date>.csv`
-6. **backtest.py** (or **run_full_backtest.py**)  
-   • Combine entries & exits into per-trade P&L, net P&L, win-rate; outputs `data/backtest/trades_<date>.csv`
+## 🔧 Core Engines (Live Trading Pipeline)
 
-## Prerequisites
-- Python 3.9+  
-- `pip install -r requirements.txt` (includes pandas, yfinance, python-dotenv, ib_insync, etc.)  
-- (Optional) Interactive Brokers TWS/IB Gateway for live execution
+| Stage | File | Description |
+|-------|------|-------------|
+| 0 | `scanner_engine.py` | Scans top % gainers every minute; filters by rel-vol, float, price, spread |
+| 1 | `watch_engine.py` | Tracks alerts; validates pullbacks (VWAP hold, red-bars, low vol) |
+| 2/3 | `entry_engine.py` | Triggers MACD+volume entry; first-fill + add logic; uses risk engine |
+| 4 | `exit_engine.py` | Moves stops via staircase; exits on red bars or 9-EMA trail |
 
-## Setup
+Each engine writes to `/alerts/` and can optionally publish to Redis.
+
+---
+
+## ✅ Live Trading Setup
+
 ```bash
-git clone https://github.com/martibx7/momentum-quant.git
+git clone https://github.com/yourname/momentum-quant.git
 cd momentum-quant
 python -m venv venv
-source venv/bin/activate   # or venv\Scripts\activate on Windows
+source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 ```
 
-If using IBKR for live orders, create a `.env` in project root:
-```ini
-IB_HOST=127.0.0.1
-IB_PORT=7497
-IB_CLIENT_ID=1
+Then create `config.yml` in root with:
+```yaml
+account:
+  ib_port: 7497
+  paper_account: "DUK756273"
 ```
 
-## Usage
-Run the full backtest for a specific date:
+Start IBKR TWS in **Paper** mode, then run:
 ```bash
-# 1) Download raw data
-python download_universe_samples.py --date 2025-04-23
-
-# 2) Preprocess indicators
-python preprocess.py --date 2025-04-23
-
-# 3) Static universe screen
-python universe_filter.py --date 2025-04-23
-
-# 4) Generate entry signals
-python generate_signals.py --date 2025-04-23
-
-# 5) Generate exit signals
-python exit_signals.py --date 2025-04-23
-
-# 6) Backtest results
-python backtest.py --date 2025-04-23
-# (or python run_full_backtest.py --date 2025-04-23)
+python scripts/run_live.py
 ```
 
-To run only parts (e.g., live orders), navigate to the `executions/` folder and follow its README.
+Live scanner, pullback monitor, entry trigger, and exit ladder will all run every second. All logic is single-threaded for safety.
 
-## File Structure
+---
+
+## ⚙️ Config Structure (`config.yml`)
+
+Tunable params include:
+- `scanner`: time windows, float limit, rel-vol thresholds
+- `watch`: pullback bar count, VWAP hold, red/green volume ratio
+- `entry`: MACD settings, vol-spike %, spread filter, add-on trigger
+- `exit`: stop R, stair-step targets, 9-EMA trail, first-red exit %
+- `risk`: 1 R = % of equity, soft/hard cap, daily max risk
+
+Full sample included in the repo root.
+
+---
+
+## 📈 Backtesting
+
+```bash
+python backtest/driver.py --tickers AAPL,AMD --date 2025-04-01
+```
+
+Produces:
+- `/backtest/runs/YYYY-MM-DD/trades.csv`
+- Live-like simulation using `SimBroker` & `StubLedger`
+
+To implement full engine-level backtesting, swap real broker/ledger with mocks. Entry/Exit logic is identical.
+
+---
+
+## 📂 Project Layout
 ```
 momentum-quant/
-├── connect.py                # IBKR connection helper
-├── download_universe_samples.py
-├── preprocess.py
-├── universe_filter.py
-├── generate_signals.py
-├── exit_signals.py
-├── backtest.py
-├── run_full_backtest.py      # optional consolidated runner
-├── requirements.txt
-├── data/
-│   ├── raw/                  # raw 1-min CSVs
-│   ├── processed/            # cleaned & indicator-enriched data
-│   ├── signals/              # filtered universe, entries & exits CSVs
-│   └── backtest/             # backtest trade-level outputs
-├── universe.txt              # static ticker list (e.g., Russell-2000)
-├── strategies/               # placeholder for additional strategies
-├── executions/               # live order logic (paper/live)
-├── logs/                     # execution & error logs
-├── .env                      # IBKR credentials (gitignored)
-└── README.md
+├── config.yml               # all tunables
+├── data/                    # raw + processed minute bars
+├── alerts/                  # runtime alert + trade logs
+├── libs/
+│   ├── broker_api.py        # ib_insync wrapper
+│   ├── ledger.py            # risk model
+├── engines/                 # scanner → exit stages
+├── scripts/
+│   └── run_live.py          # main loop for live trading
+├── backtest/
+│   └── driver.py            # simplified backtest driver
 ```
 
-## Contributing
-Pull requests and issues welcome! Please adhere to the existing code style and add tests for new functionality.
+---
 
-## License
+## 📋 Prerequisites
+- Python 3.9+
+- IBKR TWS (or IB Gateway) running in **paper** mode
+- Market-data subscriptions (even in paper!)
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 🤝 Contributing
+Pull requests welcome. Please test new features and follow modular engine format.
+
+---
+
+## 🪪 License
 MIT © Bryan Martinez

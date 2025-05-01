@@ -18,3 +18,9 @@ scipy==1.15.2
 six==1.17.0
 tzdata==2025.2
 yfinance>=0.2.18
+# Optional: for Redis support (real-time pub/sub)
+redis>=5.0.0
+
+# Needed only for Python < 3.9 (timezone handling)
+zoneinfo; python_version<'3.9'
+

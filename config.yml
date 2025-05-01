@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────
+# MOMENTUM-QUANT MASTER CONFIG
+# every value from here feeds directly into libs/ & engines/
+# ─────────────────────────────────────────────────────────────
+scanner:
+  session_windows:          # ET
+    - {start: "09:35", end: "11:15"}
+    - {start: "13:30", end: "15:30"}
+  pre_open_rv: 3.5          # before 09:45
+  intraday_rv: 5.0
+  pct_gainer_min: 10        # price % up vs. prev close **NEW**
+  min_price: 1.0
+  max_price: 50.0
+  min_volume: 300000
+  float_max: 30_000_000
+  spread_max_pct: 1.5
+  exclusion: ["ETF", "ADR", "HALT"]
+  publish: csv              # csv | redis
+  redis_channel: scanner_alerts
+
+watch:                      # Stage-1 pull-back validation
+  timeout_minutes: 30
+  micro_pullback:
+    max_red_bars: 3         # **NEW**
+    max_pullback_pct: 1.2   # from local high
+    must_hold_vwap: true
+    low_vol_ratio: 0.40     # red-bar vol ÷ green-bar vol
+
+entry:                      # Stage-2/3 trigger
+  macd_fast: 6
+  macd_slow: 13
+  macd_signal: 4
+  vol_spike_ratio: 1.25
+  first_fill_pct: 0.50
+  add_after_break_pct: 0.30
+  max_spread_pct: 1.5       # second check right before ordering
+
+exit:                       # Stage-4 staircase
+  stop_R: -1
+  target_R: [ +1, +2, +3 ]  # move stop to BE at +1 R, etc.
+  first_red_exit_pct: 75    # % of position to dump on first red close
+  ema_trailing_len: 9
+
+risk:                       # account-level controls
+  R_pct_equity: 0.02
+  daily_max_R: 5            # –10 % worst-case
+  soft_position_cap: 5      # throttle threshold
+  hard_position_cap: null   # optional absolute limit
+  quality_threshold:
+    base: 0.70
+    throttled: 0.85         # when > soft_position_cap live
+
+throttle:
+  cooldown_minutes: 3       # min gap between new entries
+  crowded_tag: true         # label alerts that hit during throttle
+
+market_regime:              # for future HOT/NEUTRAL/COLD logic
+  tick_hot:   +800
+  tick_cold:  -800
+  add_hot:    +1500
+  add_cold:   -1500
+  use_real_time_feed: false # placeholder until we wire internals
+
+commission:
+  per_share: 0.005
+  min_per_order: 1.0
+  slippage_pct: 0.05        # applied in back-test only
+
+backtest:
+  data_provider: yfinance
+  store_bars: false
+  results_dir: backtest/runs
+
+logging:
+  level: INFO               # DEBUG | INFO | WARNING | ERROR
+  dir: logs                 # root log folder
