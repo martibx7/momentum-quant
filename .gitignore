@@ -1,7 +1,30 @@
+# Python
 venv/
 __pycache__/
 *.py[cod]
+*.log
+
+# Environment / secrets
 .env
-data/
-logs/
+
+# IDEs
 .idea/
+.vscode/
+
+# Runtime-generated folders
+alerts/
+backtest/runs/
+
+# Raw/minute data (optional)
+data/                # ✅ only if you're recreating all raw/processed data
+
+# backtest outputs
+/backtest/runs/
+/backtest/runs/**
+
+# per-run summaries and trades
+summary.json
+trades.json
+
+# raw minute bars (if you ever store them under data/)
+data/*.csv

@@ -1,0 +1,2 @@
+timestamp,open,high,low,close,volume,prev_close,avg_daily_vol,vwap,ema9,ema20,ema200,macd,macd_signal,tr,atr14,pdi,mdi,dx,adx14,mom5,mom15
+2025-04-23 14:04:00+00:00,1.9800000190734863,2.0,1.9800000190734863,2.0,165908.0,1.850000023841858,13147480.0,1.993333339691162,2.0,2.0,2.0,0.0,0.0,0.019999980926513672,,,,,,,

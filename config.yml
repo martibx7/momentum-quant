@@ -2,75 +2,116 @@
 # MOMENTUM-QUANT MASTER CONFIG
 # every value from here feeds directly into libs/ & engines/
 # ─────────────────────────────────────────────────────────────
+
+polygon:
+  api_key: "eV5glgxEQ2JUtpcVJkQCwGHJlv6EkNtk"
+
 scanner:
-  session_windows:          # ET
-    - {start: "09:35", end: "11:15"}
-    - {start: "13:30", end: "15:30"}
-  pre_open_rv: 3.5          # before 09:45
-  intraday_rv: 5.0
-  pct_gainer_min: 10        # price % up vs. prev close **NEW**
-  min_price: 1.0
-  max_price: 50.0
-  min_volume: 300000
-  float_max: 30_000_000
-  spread_max_pct: 1.5
-  exclusion: ["ETF", "ADR", "HALT"]
-  publish: csv              # csv | redis
-  redis_channel: scanner_alerts
+  # 0. Mission & windows
+  session_windows:
+    - { start: "09:35", end: "11:15" }
+    - { start: "13:30", end: "15:30" }
 
-watch:                      # Stage-1 pull-back validation
-  timeout_minutes: 30
+  # 1. Price filters
+  min_price:         1.00
+  max_price:        20.00
+
+  # 2. Day-move filters
+  pct_move_total:   10.0    # +10% from prior close
+  pct_move_intraday: 8.0    # OR +8% intraday
+
+  # 3. Relative Volume (RV1m)
+  pre_open_rv:      3.5     # 09:30–09:45
+  intraday_rv:      5.0     # after 09:45
+  vol_override:  250000     # alert if vol_now ≥ this even if RV<thr
+
+  # 4. Float & spread
+  float_low_thresh: 20000000  # <20 M ⇒ “lowFloat” tag
+  float_max:        50000000  # >50 M ⇒ risk-cap override
+  spread_max_pct:   1.5
+
+  # 5. Halts
+  halt_flag_count:     3      # tag if ≥3 halts
+
+  # 6. Exclusions & output
+  exclusion:       ["ETF","ADR"]
+  publish:         csv
+  redis_channel:   scanner_alerts
+  number_of_rows:  50
+
+watch:
+  timeout_minutes:     30
   micro_pullback:
-    max_red_bars: 3         # **NEW**
-    max_pullback_pct: 1.2   # from local high
-    must_hold_vwap: true
-    low_vol_ratio: 0.40     # red-bar vol ÷ green-bar vol
+    max_red_bars:     3
+    max_pullback_pct: 1.2
+    must_hold_vwap:   true
+    low_vol_ratio:    0.40
 
-entry:                      # Stage-2/3 trigger
-  macd_fast: 6
-  macd_slow: 13
-  macd_signal: 4
-  vol_spike_ratio: 1.25
-  first_fill_pct: 0.50
+entry:
+  macd_fast:           6
+  macd_slow:          13
+  macd_signal:         4
+  vol_spike_ratio:   1.25
+  first_fill_pct:    0.50
   add_after_break_pct: 0.30
-  max_spread_pct: 1.5       # second check right before ordering
+  max_spread_pct:    1.5
+  publish:           csv
+  redis_channel:     entry_orders
 
-exit:                       # Stage-4 staircase
-  stop_R: -1
-  target_R: [ +1, +2, +3 ]  # move stop to BE at +1 R, etc.
-  first_red_exit_pct: 75    # % of position to dump on first red close
-  ema_trailing_len: 9
+exit:
+  stop_R:            -1
+  target_R:         [1,2,3]
+  first_red_exit_pct: 75
+  ema_trailing_len:   9
+  publish:            csv
+  redis_channel:      exit_events
 
-risk:                       # account-level controls
-  R_pct_equity: 0.02
-  daily_max_R: 5            # –10 % worst-case
-  soft_position_cap: 5      # throttle threshold
-  hard_position_cap: null   # optional absolute limit
+risk:
+  R_pct_equity:      0.02
+  daily_max_R:         5
+  soft_position_cap:   5
+  hard_position_cap: null
   quality_threshold:
-    base: 0.70
-    throttled: 0.85         # when > soft_position_cap live
+    base:      0.70
+    throttled: 0.85
+
 
 throttle:
-  cooldown_minutes: 3       # min gap between new entries
-  crowded_tag: true         # label alerts that hit during throttle
+  cooldown_minutes:    3
+  crowded_tag:       true
 
-market_regime:              # for future HOT/NEUTRAL/COLD logic
-  tick_hot:   +800
+market_regime:
+  tick_hot:    800
   tick_cold:  -800
-  add_hot:    +1500
-  add_cold:   -1500
-  use_real_time_feed: false # placeholder until we wire internals
+  add_hot:    1500
+  add_cold:  -1500
+  use_real_time_feed: false
 
 commission:
-  per_share: 0.005
-  min_per_order: 1.0
-  slippage_pct: 0.05        # applied in back-test only
+  per_share:       0.005
+  min_per_order:   1.0
+  slippage_pct:    0.05
 
 backtest:
-  data_provider: yfinance
-  store_bars: false
-  results_dir: backtest/runs
+   # — data source for historical bars (still used by your CSVDataProvider or yfinance adapter)
+   data_provider:   yfinance
+
+   # — whether to write out raw minute bars to disk (unused by CSVDataProvider)
+   store_bars:      false
+
+   # — where to dump per-run results
+   results_dir:     backtest/runs
+
+   # — starting buying power for your simulated account
+   initial_cash:    100000
+
+   # — if true, sell proceeds only become available after T+2 settlement;
+   #   if false, proceeds unlock immediately (so you can reuse them intraday)
+   settled_only:    false
+
+   # — maximum simultaneous open positions (None ⇒ unlimited)
+   max_positions:   10
 
 logging:
-  level: INFO               # DEBUG | INFO | WARNING | ERROR
-  dir: logs                 # root log folder
+  level:          INFO
+  dir:            logs

@@ -1,111 +1,76 @@
-# Momentum Quant Trading Framework
+# Momentum Quant Backtester
 
-A live + backtestable momentum day-trading system. Designed to be:
-- **Paper-ready** in real-time with IBKR (Interactive Brokers)
-- **Backtestable** down to 1-minute granularity
-- Config-driven, modular, and expandable
+This project provides a framework for backtesting a momentum-based intraday trading strategy using historical minute-bar data.
 
----
+## Features
 
-## 🔧 Core Engines (Live Trading Pipeline)
+- **CSV data provider**: Load per-minute OHLCV bars from CSV (or switch to Yahoo Finance).
+- **Configurable backtest parameters**:  
+  - `initial_cash`: starting buying power  
+  - `settled_only`: enable T+2 settlement lockup  
+  - `max_positions`: limit on simultaneous open positions  
+- **Modular engines**:
+  - **ScannerEngine**: scans universe each minute for entry signals  
+  - **WatchEngine**: tracks potential setups after scan  
+  - **EntryEngine**: executes entry orders based on signals and cash  
+  - **ExitEngine**: closes positions based on stops, profit targets, and end-of-day  
+- **Backtest ledger**: simulates cash, positions, P/L, and trade history  
+- **Results**: outputs `summary.json` and `trades.json` per run  
 
-| Stage | File | Description |
-|-------|------|-------------|
-| 0 | `scanner_engine.py` | Scans top % gainers every minute; filters by rel-vol, float, price, spread |
-| 1 | `watch_engine.py` | Tracks alerts; validates pullbacks (VWAP hold, red-bars, low vol) |
-| 2/3 | `entry_engine.py` | Triggers MACD+volume entry; first-fill + add logic; uses risk engine |
-| 4 | `exit_engine.py` | Moves stops via staircase; exits on red bars or 9-EMA trail |
-
-Each engine writes to `/alerts/` and can optionally publish to Redis.
-
----
-
-## ✅ Live Trading Setup
+## Installation
 
 ```bash
-git clone https://github.com/yourname/momentum-quant.git
+git clone <repo-url>
 cd momentum-quant
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+python -m venv .venv
+source .venv/bin/activate      # or `.venv\Scripts\activate` on Windows
 pip install -r requirements.txt
 ```
 
-Then create `config.yml` in root with:
+## Configuration
+
+Edit `config.yml` to set your parameters. Example:
+
 ```yaml
-account:
-  ib_port: 7497
-  paper_account: "DUK756273"
+scanner:
+  session_windows:          # trading session windows (NY time)
+    - [09:30, 16:00]
+
+backtest:
+  data_provider:   yfinance         # or csv
+  store_bars:      false
+  results_dir:     backtest/runs
+  initial_cash:    3000
+  settled_only:    true
+  max_positions:   10
 ```
 
-Start IBKR TWS in **Paper** mode, then run:
-```bash
-python scripts/run_live.py
-```
+## Usage
 
-Live scanner, pullback monitor, entry trigger, and exit ladder will all run every second. All logic is single-threaded for safety.
-
----
-
-## ⚙️ Config Structure (`config.yml`)
-
-Tunable params include:
-- `scanner`: time windows, float limit, rel-vol thresholds
-- `watch`: pullback bar count, VWAP hold, red/green volume ratio
-- `entry`: MACD settings, vol-spike %, spread filter, add-on trigger
-- `exit`: stop R, stair-step targets, 9-EMA trail, first-red exit %
-- `risk`: 1 R = % of equity, soft/hard cap, daily max risk
-
-Full sample included in the repo root.
-
----
-
-## 📈 Backtesting
+Prepare your raw CSV minute-bars under `data/<YYYYMMDD>/`. Then run:
 
 ```bash
-python backtest/driver.py --tickers AAPL,AMD --date 2025-04-01
+python -m backtest.runner YYYYMMDD
 ```
 
-Produces:
-- `/backtest/runs/YYYY-MM-DD/trades.csv`
-- Live-like simulation using `SimBroker` & `StubLedger`
+This will:
 
-To implement full engine-level backtesting, swap real broker/ledger with mocks. Entry/Exit logic is identical.
+1. Discover your universe via `backtest/utils.py`.  
+2. Simulate intraday trading minute-by-minute.  
+3. Save `summary.json` and `trades.json` in `backtest/runs/<timestamp>/`.
 
----
+## Git: Ignoring Artifacts
 
-## 📂 Project Layout
+Make sure your `.gitignore` includes:
+
 ```
-momentum-quant/
-├── config.yml               # all tunables
-├── data/                    # raw + processed minute bars
-├── alerts/                  # runtime alert + trade logs
-├── libs/
-│   ├── broker_api.py        # ib_insync wrapper
-│   ├── ledger.py            # risk model
-├── engines/                 # scanner → exit stages
-├── scripts/
-│   └── run_live.py          # main loop for live trading
-├── backtest/
-│   └── driver.py            # simplified backtest driver
+backtest/runs/
+*.pyc
+.venv/
 ```
 
----
+## Extending
 
-## 📋 Prerequisites
-- Python 3.9+
-- IBKR TWS (or IB Gateway) running in **paper** mode
-- Market-data subscriptions (even in paper!)
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## 🤝 Contributing
-Pull requests welcome. Please test new features and follow modular engine format.
-
----
-
-## 🪪 License
-MIT © Bryan Martinez
+- Swap out data providers (`CSVDataProvider`, `YFinanceProvider`).  
+- Tweak entry/exit logic in the respective engine classes.  
+- Add metrics or plotters in post-processing.

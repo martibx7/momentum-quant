@@ -38,7 +38,10 @@ _LOG.setLevel(logging.INFO)
 
 # ───────────────────────── config ──────────────────────────────────────────
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
-_CFG = yaml.safe_load((_ROOT / "config.yml").read_text())
+# explicitly open config.yml with UTF-8 to avoid Windows code-page issues
+with open(_ROOT / "config.yml", encoding="utf-8") as f:
+    _CFG = yaml.safe_load(f)
+
 RISK_CFG = _CFG["risk"]
 _ET = ZoneInfo("America/New_York")
 
@@ -111,10 +114,10 @@ class Ledger:
 
     def _fetch_equity(self):
         try:
-            acc = self.broker.ib.managedAccounts()[0]
-            summary = self.broker.ib.accountSummary(acc, "NetLiquidation")
-            if summary:
-                return float(summary[0].value)
+            summary = self.broker.ib.reqAccountSummary("All", "NetLiquidation")
+            for row in summary:
+                if row.tag == "NetLiquidation":
+                    return float(row.value)
         except Exception as exc:  # pylint:disable=broad-except
             _LOG.warning("equity fetch failed: %s", exc)
         return 100_000.0  # default if unavailable

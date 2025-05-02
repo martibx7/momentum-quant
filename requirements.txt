@@ -1,26 +1,8 @@
-contourpy==1.3.2
-cycler==0.12.1
-eventkit==1.0.3
-fonttools==4.57.0
-ib-insync==0.9.86
-kiwisolver==1.4.8
-matplotlib==3.10.1
-nest-asyncio==1.6.0
-numpy==2.2.5
-packaging==25.0
-pandas==2.2.3
-pillow==11.2.1
-pyparsing==3.2.3
-python-dateutil==2.9.0.post0
-python-dotenv==1.1.0
-pytz==2025.2
-scipy==1.15.2
-six==1.17.0
-tzdata==2025.2
-yfinance>=0.2.18
-# Optional: for Redis support (real-time pub/sub)
-redis>=5.0.0
-
-# Needed only for Python < 3.9 (timezone handling)
-zoneinfo; python_version<'3.9'
-
+PyYAML>=6.0
+pandas>=1.5
+numpy>=1.23
+ib-insync>=0.9
+python-dateutil>=2.8
+yfinance>=0.2
+zoneinfo; python_version<"3.9"
+tzdata; python_version<"3.9"

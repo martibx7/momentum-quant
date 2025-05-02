@@ -49,7 +49,7 @@ class BrokerAPI:
     def __init__(self, ib: Optional[IB] = None):
         self.ib = ib or IB()
         if not self.ib.isConnected():
-            self.ib.connect("127.0.0.1", 7497, clientId=5)
+            self.ib.connect("127.0.0.1", 7497, clientId=21)  # updated to avoid clientId conflict
         self._contract_cache: Dict[str, Stock] = {}
         self._positions: Dict[str, Position] = {}
         # register global fill handler
